@@ -126,14 +126,14 @@ async def create_course(request):
 
             # Get or create the icon
             icon_name = data.icon_name
-            result = await session.execute(
+            icon = await session.scalar(
                 select(Icon).filter_by(icon_name=icon_name)
-            ) #  await was added
-            icon = result.scalar_one_or_none()  # Simplified query
+            )  #  await on session.scalar
             if not icon and icon_name:
                 icon = Icon(icon_name=icon_name)
                 session.add(icon)
-
+                await session.flush()  # Optional: flush for immediate ID assignment
+            
             # Create the course
             new_course = Course(
                 title=data.title, description=data.description, teacher=teacher, icon=icon
@@ -147,32 +147,6 @@ async def create_course(request):
             response_data = new_course.to_dict()
 
         return web.json_response(response_data, status=201)
-
-    except IntegrityError as e:
-        if "duplicate key value violates unique constraint" in str(e):
-            return web.json_response({"error": "A course with this icon already exists"}, status=400)
-        logging.error(f"IntegrityError: {e}")
-        return web.json_response({"error": "Database integrity error"}, status=400)
-
-    except ValidationError as e:
-        logging.error(f"ValidationError: {e.errors()}")
-        return web.json_response({"error": e.errors()}, status=400)
-
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}", exc_info=True)  # Log traceback
-        return web.json_response({"error": "Internal server error"}, status=500)
-
-async def create_class(request):  # Now, Class is defined before this function
-    try:
-        data = ClassInput(**await request.json())
-        async with async_session_maker() as session:
-            new_class = Class(**data.dict())
-            session.add(new_class)
-            await session.commit()
-            return web.json_response(new_class.to_dict(), status=201)  # Return the created class as JSON
-    except ValidationError as e:
-        return web.json_response({"error": e.errors()}, status=400)
-
 
 
 async def get_courses_by_teacher(request):
