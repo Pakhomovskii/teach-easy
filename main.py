@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from aiohttp import web
 from pydantic import BaseModel, Field, validator, ValidationError
 from sqlalchemy import select, Column, Integer, String, ForeignKey, inspect
@@ -116,37 +118,44 @@ async def create_course(request):
     try:
         data = CourseInput(**await request.json())
 
-        # Check if teacher exists (Important!)
+        # Check if teacher exists
         async with async_session_maker() as session:
             teacher = await session.get(Teacher, data.teacher_id)
             if not teacher:
-                raise IntegrityError("Teacher with this ID does not exist.")
+                return web.json_response({"error": "Teacher not found"}, status=404)
 
-        # Check if icon with provided name exists or create a new one
+        # Get or create the icon
+        icon_name = data.icon_name
         async with async_session_maker() as session:
-            icon = await session.execute(select(Icon).filter_by(icon_name=data.icon_name))
+            icon = await session.execute(select(Icon).filter_by(icon_name=icon_name))
             icon = icon.scalar()
-            if not icon:
-                if data.icon_name:
-                    # Create a new icon if icon_name is provided
-                    icon = Icon(icon_name=data.icon_name)
-                    session.add(icon)
-                    await session.commit()
+            if not icon and icon_name:
+                icon = Icon(icon_name=icon_name)
+                session.add(icon)
+                await session.commit()
 
-            # Create the course with the icon (if it exists)
-            new_course = Course(title=data.title, description=data.description, teacher=teacher, icon=icon)
-            session.add(new_course)
-            await session.commit()
+        # Create the course
+        new_course = Course(
+            title=data.title, description=data.description, teacher=teacher, icon=icon
+        )
+        session.add(new_course)
+        await session.commit()
 
-            return web.json_response({"course_id": new_course.course_id, "title": new_course.title, "icon_name": icon.icon_name if icon else None}, status=201)
+        response_data = new_course.to_dict()
+
+        return web.json_response(response_data, status=201)
 
     except IntegrityError as e:
-        if "duplicate key value violates unique constraint" in str(e):
-            return web.json_response({"error": "A course with this icon already exists"}, status=400)
-        else:
-            return web.json_response({"error": str(e)}, status=400)
+        logging.error(f"IntegrityError: {e}")
+        return web.json_response({"error": "Database integrity error"}, status=400)
+
     except ValidationError as e:
+        logging.error(f"ValidationError: {e.errors()}")
         return web.json_response({"error": e.errors()}, status=400)
+
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}", exc_info=True)  # Log traceback
+        return web.json_response({"error": "Internal server error"}, status=500)
 
 
 async def create_class(request):  # Now, Class is defined before this function
@@ -200,7 +209,7 @@ async def main():
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await web._run_app(app, host='64.226.89.177', port=87)
+    await web._run_app(app, host='64.226.89.177', port=86)
 
 if __name__ == '__main__':
     asyncio.run(main())
