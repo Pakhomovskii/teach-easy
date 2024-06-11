@@ -148,10 +148,8 @@ INSERT_TEACHER_SQL="
 INSERT INTO teachers (name, surname, email, password, portfolio)
 VALUES ('Default', 'Teacher', 'default.teacher@example.com', 'securepassword', 'https://www.example.com/portfolio');
 "
-
-echo "Creating or updating tables and inserting initial data in $DB_NAME"
-
+execute_sql "$DB_NAME" "$INSERT_TEACHER_SQL"
 
 # Insert Initial Data
 execute_sql "$DB_NAME" "$INSERT_ICONS_SQL"
-execute_sql "$DB_NAME" "$INSERT_TEACHER_SQL"
+
