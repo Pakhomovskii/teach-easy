@@ -1,0 +1,18 @@
+
+####
+POST http://64.226.115.55:80/courses
+Content-Type: application/json
+
+{
+    "title": "Test Course from PyCharm",
+    "description": "This is a test course created with PyCharm's HTTP Client",
+    "teacher_id": 1,
+    "icon_id": 2
+}
+###
+
+GET http://64.226.115.55:80/courses/teacher/1
+Accept: application/json
+###
+GET http://64.226.115.55:80/icons
+Accept: application/json

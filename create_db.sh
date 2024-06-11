@@ -1,20 +1,23 @@
 #!/bin/bash
 
+
 DB_USER="postgres"
 DB_PASSWORD="postgres"
 DB_HOST="localhost"
 DB_NAME="teach_easy"
 
-export PGPASSWORD="$DB_PASSWORD"
 
 execute_sql() {
     local db_name="$1"
     local sql_command="$2"
     echo "Executing SQL on $db_name: $sql_command"
-    psql -h "$DB_HOST" -U "$DB_USER" -d "$db_name" -c "$sql_command"
+    if ! psql -h "$DB_HOST" -U "$DB_USER" -d "$db_name" -c "$sql_command"; then
+        echo "Error executing SQL on $db_name"
+        exit 1
+    fi
 }
 
-# --- Check if Database Exists ---
+
 if psql -h "$DB_HOST" -U "$DB_USER" -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
     echo "Database $DB_NAME already exists."
 else
@@ -22,7 +25,6 @@ else
     execute_sql "postgres" "CREATE DATABASE \"$DB_NAME\";"
 fi
 
-# --- Table Creation SQL (Organized for Readability) ---
 
 CREATE_TEACHERS_TABLE_SQL="
 CREATE TABLE IF NOT EXISTS teachers (
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS teachers (
     password TEXT NOT NULL
 );
 "
+
 CREATE_COURSES_TABLE_SQL="
 CREATE TABLE IF NOT EXISTS courses (
     course_id SERIAL PRIMARY KEY,
@@ -53,7 +56,6 @@ CREATE TABLE IF NOT EXISTS subjects (
     FOREIGN KEY (course_id) REFERENCES courses(course_id)
 );
 "
-
 
 CREATE_STUDENTS_TABLE_SQL="
 CREATE TABLE IF NOT EXISTS students (
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS classes (
 );
 "
 
-# Adding ENUM for attendance status
+
 CREATE_ATTENDANCE_STATUS_TYPE_SQL="
 DO \$\$
 BEGIN
@@ -118,13 +120,8 @@ CREATE TABLE IF NOT EXISTS icons (
 );
 "
 
-
-
-echo "Creating or updating tables in $DB_NAME"
-
-# Correct Order: Create or update tables in dependency order
+echo "Creating tables in $DB_NAME"
 execute_sql "$DB_NAME" "$CREATE_TEACHERS_TABLE_SQL"
-execute_sql "$DB_NAME" "$CREATE_ICONS_TABLE_SQL"
 execute_sql "$DB_NAME" "$CREATE_COURSES_TABLE_SQL"
 execute_sql "$DB_NAME" "$CREATE_SUBJECTS_TABLE_SQL"
 execute_sql "$DB_NAME" "$CREATE_STUDENTS_TABLE_SQL"
@@ -132,10 +129,7 @@ execute_sql "$DB_NAME" "$CREATE_CLASSES_TABLE_SQL"
 execute_sql "$DB_NAME" "$CREATE_ATTENDANCE_STATUS_TYPE_SQL"
 execute_sql "$DB_NAME" "$CREATE_ATTENDANCE_TABLE_SQL"
 execute_sql "$DB_NAME" "$CREATE_MARKS_TABLE_SQL"
-
-
-
-echo "Database setup complete."
+execute_sql "$DB_NAME" "$CREATE_ICONS_TABLE_SQL"
 
 
 INSERT_ICONS_SQL="
@@ -149,11 +143,9 @@ INSERT INTO teachers (name, surname, email, password, portfolio)
 VALUES ('Default', 'Teacher', 'default.teacher@example.com', 'securepassword', 'https://www.example.com/portfolio');
 "
 
-echo "Creating or updating tables and inserting initial data in $DB_NAME"
 
-DROP_ICON_ID_CONSTRAINT_SQL="
-ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_icon_id_key;
-"
+echo "Inserting data into $DB_NAME"
+execute_sql "$DB_NAME" "$INSERT_ICONS_SQL"
+execute_sql "$DB_NAME" "$INSERT_TEACHER_SQL"
 
-execute_sql "$DB_NAME" "$DROP_ICON_ID_CONSTRAINT_SQL"
-execute_sql "$DB_NAME" "$CREATE_COURSES_TABLE_SQL"
+echo "Database setup complete."
