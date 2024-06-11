@@ -67,7 +67,7 @@ class CourseInput(BaseModel):
     title: str = Field(..., max_length=100)
     description: str = Field(None, max_length=255)
     teacher_id: int = Field(..., gt=0)
-    icon_name: str = Field(None, max_length=100)  # Optional icon name
+    icon_id: int = Field(None, gt=0)  # Optional icon ID
 
 
 class ClassInput(BaseModel):
@@ -109,16 +109,16 @@ async def create_course(request):
             # Check if teacher exists
             teacher = await session.get(Teacher, data.teacher_id)
             if not teacher:
-                raise web.HTTPNotFound(reason="Teacher not found")  # More specific error
+                raise web.HTTPNotFound(reason="Teacher not found")
 
-            # Get icon
-            icon_name = data.icon_name
-            if icon_name:
-                icon = await session.scalar(select(Icon).filter_by(icon_name=icon_name))
+            # Get icon if provided
+            icon = None
+            if data.icon_id:
+                icon = await session.get(Icon, data.icon_id)
                 if not icon:
-                    raise web.HTTPBadRequest(reason="Icon with given name does not exist")
+                    raise web.HTTPBadRequest(reason="Icon with given ID does not exist")
 
-                    # Create course
+            # Create course
             new_course = Course(
                 title=data.title, description=data.description, teacher=teacher, icon=icon
             )
@@ -130,6 +130,10 @@ async def create_course(request):
     except ValidationError as e:
         logging.error(f"ValidationError: {e.errors()}")
         return web.json_response({"error": e.errors()}, status=400)
+
+    except AttributeError:
+        return web.json_response({"error": "icon_id is required"}, status=400)
+
 
     except Exception as e:
         logging.exception("Unexpected error")
@@ -147,20 +151,18 @@ async def create_class(request):  # Now, Class is defined before this function
     except ValidationError as e:
         return web.json_response({"error": e.errors()}, status=400)
 
+async def get_icons(request):
+    async with async_session_maker() as session:
+        icons = await session.scalars(select(Icon))
+        return web.json_response([icon.to_dict() for icon in icons.all()])
+
 
 
 async def get_courses_by_teacher(request):
     teacher_id = int(request.match_info['teacher_id'])
     async with async_session_maker() as session:
-        stmt = (
-            select(Course)
-            .join(Subject)
-            .join(Class)
-            .filter(Class.teacher_id == teacher_id)
-        )  # Simplified joins
-        result = await session.execute(stmt)
-        courses = result.scalars().all()
-        return web.json_response([course.to_dict() for course in courses])
+        courses = await session.scalars(select(Course).where(Course.teacher_id == teacher_id))
+        return web.json_response([course.to_dict() for course in courses.all()])
 
 def _add_to_dict_method(cls):
     def to_dict(self):
@@ -181,6 +183,7 @@ app.add_routes([
     web.get('/courses', get_courses),
     web.post('/courses', create_course),
     web.post('/classes', create_class),
+    web.get('/icons', get_icons),
     web.get('/courses/teacher/{teacher_id}', get_courses_by_teacher),
 ])
 
