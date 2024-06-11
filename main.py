@@ -213,7 +213,7 @@ async def main():
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await web._run_app(app, host='64.226.89.177', port=8080)
+    await web._run_app(app, host='64.226.115.55', port=8080)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
