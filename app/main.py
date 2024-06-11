@@ -24,20 +24,6 @@ app.add_routes([
 
 
 async def main():
-    """
-        Asynchronous main function to set up and start the web application.
-
-        This function performs the following operations:
-        - Initializes the SQLAlchemy async engine with the database URL.
-        - Creates a sessionmaker for asynchronous sessions with the database.
-        - Creates all tables in the database if they do not already exist.
-        - Adds a custom method to each model class for dictionary conversion.
-        - Starts the aiohttp web application on localhost at port 8080.
-
-        Globals:
-        - engine: The SQLAlchemy async engine instance used for database connections.
-        - async_session_maker: A sessionmaker instance configured for async sessions.
-        """
     global engine
     global async_session_maker
     engine = create_async_engine(DATABASE_URL)
