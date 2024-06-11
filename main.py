@@ -118,34 +118,39 @@ async def create_course(request):
     try:
         data = CourseInput(**await request.json())
 
-        # Check if teacher exists
         async with async_session_maker() as session:
+            # Check if teacher exists
             teacher = await session.get(Teacher, data.teacher_id)
             if not teacher:
                 return web.json_response({"error": "Teacher not found"}, status=404)
 
-        # Get or create the icon
-        icon_name = data.icon_name
-        async with async_session_maker() as session:
-            icon = await session.execute(select(Icon).filter_by(icon_name=icon_name))
-            icon = icon.scalar()
+            # Get or create the icon
+            icon_name = data.icon_name
+            result = await session.execute(
+                select(Icon).filter_by(icon_name=icon_name)
+            ) #  await was added
+            icon = result.scalar_one_or_none()  # Simplified query
             if not icon and icon_name:
                 icon = Icon(icon_name=icon_name)
                 session.add(icon)
-                await session.commit()
 
-        # Create the course
-        new_course = Course(
-            title=data.title, description=data.description, teacher=teacher, icon=icon
-        )
-        session.add(new_course)
-        await session.commit()
+            # Create the course
+            new_course = Course(
+                title=data.title, description=data.description, teacher=teacher, icon=icon
+            )
+            session.add(new_course)
 
-        response_data = new_course.to_dict()
+            # Commit all changes within the same session
+            await session.commit()
+
+            # After the commit, the new_course instance is in a valid state and can be converted to dict
+            response_data = new_course.to_dict()
 
         return web.json_response(response_data, status=201)
 
     except IntegrityError as e:
+        if "duplicate key value violates unique constraint" in str(e):
+            return web.json_response({"error": "A course with this icon already exists"}, status=400)
         logging.error(f"IntegrityError: {e}")
         return web.json_response({"error": "Database integrity error"}, status=400)
 
@@ -156,7 +161,6 @@ async def create_course(request):
     except Exception as e:
         logging.error(f"Unexpected error: {e}", exc_info=True)  # Log traceback
         return web.json_response({"error": "Internal server error"}, status=500)
-
 
 async def create_class(request):  # Now, Class is defined before this function
     try:
@@ -209,7 +213,8 @@ async def main():
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await web._run_app(app, host='64.226.89.177', port=86)
+    await web._run_app(app, host='64.226.89.177', port=8080)
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     asyncio.run(main())
