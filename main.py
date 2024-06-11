@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, validator, ValidationError
 from sqlalchemy import select, Column, Integer, String, ForeignKey, inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship, selectinload
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship, selectinload, joinedload
 
 DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost/teach_easy"
 
@@ -94,75 +94,47 @@ for model in (Teacher, Class, Subject, Course, Icon): #added icon to to_dict
 # API Endpoints
 async def get_courses(request):
     async with async_session_maker() as session:
-        courses = await session.scalars(select(Course).options(
-            # Optionally load the related icon in the same query
-            selectinload(Course.icon)
-        ))
-
+        courses = await session.scalars(
+            select(Course).options(joinedload(Course.icon))  # Use joinedload here
+        )
         return web.json_response(
-            [
-                {
-                    "course_id": course.course_id,
-                    "title": course.title,
-                    "description": course.description,
-                    "teacher_id": course.teacher_id,
-                    "icon_name": course.icon.icon_name if course.icon else None,
-                    "icon_link": course.icon.link if course.icon else None,
-                } for course in courses
-            ]
+            [course.to_dict() for course in courses.all()]  # Iterate over results
         )
 
-
-
 async def create_course(request):
-
     try:
         data = CourseInput(**await request.json())
-        print("Received data:", data)
 
         async with async_session_maker() as session:
             # Check if teacher exists
             teacher = await session.get(Teacher, data.teacher_id)
             if not teacher:
-                return web.json_response({"error": "Teacher not found"}, status=404)
+                raise web.HTTPNotFound(reason="Teacher not found")  # More specific error
 
-            # Get or create the icon
+            # Get icon
             icon_name = data.icon_name
-            result = await session.execute(
-                select(Icon).filter_by(icon_name=icon_name)
-            ) #  await was added
-            icon = result.scalar_one_or_none()  # Simplified query
-            if not icon and icon_name:
-                icon = Icon(icon_name=icon_name)
-                session.add(icon)
+            if icon_name:
+                icon = await session.scalar(select(Icon).filter_by(icon_name=icon_name))
+                if not icon:
+                    raise web.HTTPBadRequest(reason="Icon with given name does not exist")
 
-            # Create the course
+                    # Create course
             new_course = Course(
                 title=data.title, description=data.description, teacher=teacher, icon=icon
             )
             session.add(new_course)
-
-            # Commit all changes within the same session
             await session.commit()
 
-            # After the commit, the new_course instance is in a valid state and can be converted to dict
-            response_data = new_course.to_dict()
-
-        return web.json_response(response_data, status=201)
-
-    except IntegrityError as e:
-        if "duplicate key value violates unique constraint" in str(e):
-            return web.json_response({"error": "A course with this icon already exists"}, status=400)
-        logging.error(f"IntegrityError: {e}")
-        return web.json_response({"error": "Database integrity error"}, status=400)
+            return web.json_response(new_course.to_dict(), status=201)
 
     except ValidationError as e:
         logging.error(f"ValidationError: {e.errors()}")
         return web.json_response({"error": e.errors()}, status=400)
 
     except Exception as e:
-        logging.error(f"Unexpected error: {e}", exc_info=True)  # Log traceback
+        logging.exception("Unexpected error")
         return web.json_response({"error": "Internal server error"}, status=500)
+
 
 async def create_class(request):  # Now, Class is defined before this function
     try:
@@ -190,6 +162,18 @@ async def get_courses_by_teacher(request):
         courses = result.scalars().all()
         return web.json_response([course.to_dict() for course in courses])
 
+def _add_to_dict_method(cls):
+    def to_dict(self):
+        result = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # Check for __mapper__ before accessing relationships
+        if hasattr(self, '__mapper__'):
+            for relationship_name, relationship_obj in inspect(self.__mapper__).relationships.items():
+                if relationship_obj.lazy == "joined" and getattr(self, relationship_name):
+                    result[relationship_name] = getattr(self, relationship_name).to_dict()
+        return result
+    cls.to_dict = to_dict
+    return cls
+
 
 # App Setup
 app = web.Application()
@@ -213,10 +197,18 @@ async def main():
     async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await web._run_app(app, host='0.0.0.0', port=8080)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        for model in (Teacher, Class, Subject, Course, Icon):
+            _add_to_dict_method(model)
+
+        await web._run_app(app, host='64.226.115.55', port=80)
+    finally:
+        await engine.dispose()  # Clean up the engine
+
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)  # Set logging level to INFO
     asyncio.run(main())
