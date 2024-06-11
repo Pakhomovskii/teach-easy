@@ -28,6 +28,13 @@ class Course(Base):
 
 
 class Icon(Base):
+    """
+        Represents an icon entity within the database, mapping to the 'icons' table.
+        Attributes:
+            icon_id
+            icon_name
+            link
+        """
     __tablename__ = 'icons'
     icon_id = Column(Integer, primary_key=True)
     icon_name = Column(String, nullable=False, unique=True)
@@ -35,6 +42,18 @@ class Icon(Base):
 
 
 class Teacher(Base):
+    """
+        Represents a teacher entity within the database, mapping to the 'teachers' table.
+        Attributes:
+            teacher_id
+            name
+            surname
+            email
+            portfolio
+            password
+            classes
+            courses
+    """
     __tablename__ = 'teachers'
     teacher_id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
@@ -47,6 +66,14 @@ class Teacher(Base):
 
 
 class Subject(Base):
+    """
+        Represents a subject entity within the database, mapping to the 'subjects' table.
+        Attributes:
+            subject_id
+            name
+            course_id
+            classes
+        """
     __tablename__ = 'subjects'
     subject_id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
@@ -55,6 +82,17 @@ class Subject(Base):
 
 
 class Class(Base):
+    """
+        Represents a class entity within the database, mapping to the 'classes' table.
+        Attributes:
+            class_id
+            title
+            subject_id
+            teacher_id
+            class_time
+            subject
+            teacher
+        """
     __tablename__ = 'classes'
     class_id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)
@@ -73,6 +111,15 @@ class CourseInput(BaseModel):
 
 
 class Student(Base):
+    """
+        Represents a student entity within the database, mapping to the 'students' table.
+        Attributes:
+            student_id
+            name (Column)
+            surname (Column)
+            email (Column)
+            birthday (Column)
+        """
     __tablename__ = 'students'
     student_id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
@@ -84,12 +131,11 @@ class Student(Base):
 class ClassInput(BaseModel):
     """
         A Pydantic model representing the input data structure for a class entity.
-
         Attributes:
-            title (str): The title of the class. Must be a string with a maximum length of 100 characters.
-            subject_id (int): The ID of the subject associated with the class. Must be an integer greater than 0.
-            teacher_id (int): The ID of the teacher conducting the class. Must be an integer greater than 0.
-            class_time (str): The scheduled time for the class. Must be a string representing the time.
+            title (str)
+            subject_id (int)
+            teacher_id (int)
+            class_time (str)
         """
     title: str = Field(..., max_length=100)
     subject_id: int = Field(..., gt=0)
