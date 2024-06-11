@@ -148,8 +148,12 @@ INSERT_TEACHER_SQL="
 INSERT INTO teachers (name, surname, email, password, portfolio)
 VALUES ('Default', 'Teacher', 'default.teacher@example.com', 'securepassword', 'https://www.example.com/portfolio');
 "
-execute_sql "$DB_NAME" "$INSERT_TEACHER_SQL"
 
-# Insert Initial Data
-execute_sql "$DB_NAME" "$INSERT_ICONS_SQL"
+echo "Creating or updating tables and inserting initial data in $DB_NAME"
 
+DROP_ICON_ID_CONSTRAINT_SQL="
+ALTER TABLE courses DROP CONSTRAINT IF EXISTS courses_icon_id_key;
+"
+
+execute_sql "$DB_NAME" "$DROP_ICON_ID_CONSTRAINT_SQL"
+execute_sql "$DB_NAME" "$CREATE_COURSES_TABLE_SQL"
