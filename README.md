@@ -1,6 +1,6 @@
 ### Teach Easy
 
-Bacend of Teach Easy that is an application designed to simplify the teaching and learning process through intuitive features.
+The backend of Teach Easy is an application designed to simplify the teaching and learning process through intuitive features.
 
 #### Features
 
