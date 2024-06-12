@@ -9,9 +9,7 @@ from models import Teacher, Class, Subject, Course, Icon
 from routes import get_courses, create_course, create_class, get_icons, get_courses_by_teacher
 from utils import add_to_dict_method
 
-
 Base = declarative_base()
-
 
 app = web.Application()
 app.add_routes([
@@ -23,20 +21,32 @@ app.add_routes([
 ])
 
 
-async def main():
-    global engine
-    global async_session_maker
-    engine = create_async_engine(DATABASE_URL)
-    async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async def startup(app):
+    app['db_session'] = sessionmaker(
+        create_async_engine(DATABASE_URL, echo=True),
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
 
-    async with engine.begin() as conn:
+    async with app['db_session']().bind.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     for model in (Teacher, Class, Subject, Course, Icon):
         add_to_dict_method(model)
 
+
+async def cleanup(app):
+    await app['db_session']().bind.dispose()
+
+
+app.on_startup.append(startup)
+app.on_cleanup.append(cleanup)
+
+
+async def main():
+    logging.basicConfig(level=logging.INFO)
     await web._run_app(app, host='localhost', port=8080)
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
