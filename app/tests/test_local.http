@@ -1,0 +1,18 @@
+
+####
+POST http://localhost:8080/courses
+Content-Type: application/json
+
+{
+    "title": "Test Course from PyCharm",
+    "description": "This is a test course created with PyCharm's HTTP Client",
+    "teacher_id": 1,
+    "icon_id": 1
+}
+###
+
+GET http://localhost:8080/courses/teacher/1
+Accept: application/json
+###
+GET http://localhost:8080/icons
+Accept: application/json
